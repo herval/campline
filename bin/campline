@@ -1,0 +1,17 @@
+#!/usr/local/bin/ruby
+
+require 'pry'
+
+require "./lib/campline"
+
+if ARGV.size != 3
+  puts "Usage: campline <domain> <room> <username>"
+  exit 1
+end
+
+domain, room, username = *ARGV
+
+puts "Type in your password:"
+password = $stdin.gets.strip
+
+Campline::Client.new(domain, room, username, password).listen!

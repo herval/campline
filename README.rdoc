@@ -1,6 +1,10 @@
 = campline
 
-Description goes here.
+A tiny Campfire client.
+
+Usage: campline <domain> <room> <username>
+
+The client will prompt for your password and that's it - you're in!
 
 == Contributing to campline
  
@@ -14,6 +18,7 @@ Description goes here.
 
 == Copyright
 
-Copyright (c) 2012 Herval. See LICENSE.txt for
-further details.
+Partially based on campfire-cli, by Petyo Ivanov
+
+Copyleft (c) 2012 Herval. See LICENSE.txt for further details.
 

@@ -17,8 +17,8 @@ Jeweler::Tasks.new do |gem|
   gem.name = "campline"
   gem.homepage = "http://github.com/herval/campline"
   gem.license = "MIT"
-  gem.summary = %Q{TODO: one-line summary of your gem}
-  gem.description = %Q{TODO: longer description of your gem}
+  gem.summary = %Q{A tiny Campfire client}
+  gem.description = %Q{A tiny Campfire client for command line}
   gem.email = "hervalfreire@gmail.com"
   gem.authors = ["Herval"]
   # dependencies defined in Gemfile
