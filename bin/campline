@@ -1,8 +1,6 @@
-#!/usr/local/bin/ruby
+#!/usr/bin/ruby
 
-require 'pry'
-
-require "./lib/campline"
+require "campline"
 
 if ARGV.size != 3
   puts "Usage: campline <domain> <room> <username>"
