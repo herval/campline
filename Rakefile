@@ -20,7 +20,7 @@ Jeweler::Tasks.new do |gem|
   gem.summary = %Q{A tiny Campfire client}
   gem.description = %Q{A tiny Campfire client for command line}
   gem.email = "hervalfreire@gmail.com"
-  gem.authors = ["Herval"]
+  gem.authors = ["Herval Freire"]
   # dependencies defined in Gemfile
 end
 Jeweler::RubygemsDotOrgTasks.new
