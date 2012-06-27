@@ -1,3 +1,4 @@
+require 'readline'
 require 'tinder'
 require 'yaml'
 require 'cli-colorize'
