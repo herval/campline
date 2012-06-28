@@ -1,3 +1,4 @@
+require 'rubygems'
 require 'readline'
 require 'tinder'
 require 'yaml'
@@ -19,12 +20,14 @@ module Campline
     end
 
     def print_message(msg)
+      next if msg[:user] && msg[:user][:id] == @user_id
       case msg[:type]
         when "SoundMessage" then
-          puts "#{green(msg[:user][:name])} played some annoying sound"
+          puts "#{green(msg[:user][:name])} played some annoying sound" 
         when "PasteMessage" then
+          puts "#{green(msg[:user][:name])}: #{msg[:body]}"
         when "TextMessage" then
-          puts "#{green(msg[:user][:name])}: #{msg[:body]}" if msg[:user][:id] != @user_id
+          puts "#{green(msg[:user][:name])}: #{msg[:body]}"
       end
     end
 
@@ -82,8 +85,10 @@ module Campline
       puts "You're up! For a list of available commands, type #{highlight('/help')}"
 
       Thread.new(@campfire_room) do |listener|
-        listener.listen do |msg|
-          print_message msg
+        while true
+          listener.listen do |msg|
+            print_message msg
+          end
         end
       end
 
