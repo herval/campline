@@ -36,14 +36,14 @@ module Campline
 
     def commands
       {
-        "/help" => lambda { @input_buffer << "Available commands: /users (list users on the room), /exit (quit!)"},
+        "/help" => lambda { print "\r\nAvailable commands: /users (list users on the room), /exit (quit!)"},
         "/exit" => lambda { @campfire_room.leave; exit; },
         "/users" => lambda { list_users }
       }
     end
 
     def list_users
-      @input_buffer << white("In the room right now: #{@room_users.join(', ')}")
+      print white("\r\nIn the room right now: #{@room_users.join(', ')}")
     end
 
     def update_user_list
