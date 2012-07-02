@@ -1,6 +1,6 @@
 require 'rubygems'
-require 'readline'
 require 'tinder'
+require 'readline'
 require 'yaml'
 require 'cli-colorize'
 
@@ -20,7 +20,7 @@ module Campline
     end
 
     def print_message(msg)
-      next if msg[:user] && msg[:user][:id] == @user_id
+      return if msg[:user] && msg[:user][:id] == @user_id
       case msg[:type]
         when "SoundMessage" then
           puts "#{green(msg[:user][:name])} played some annoying sound" 
@@ -73,13 +73,18 @@ module Campline
 
     def listen!
       puts "Logging in..."
-      campfire = Campfire.new @domain, :username => @username, :password => @password, :ssl => true
+      begin
+        campfire = Campfire.new @domain, :username => @username, :password => @password, :ssl => true
+      rescue Tinder::AuthenticationFailed
+        raise "There was an authentication error - check your username and password"
+      end
       @user_id = campfire.me.id
 
       puts "Joining #{@room}..."
       @campfire_room = campfire.find_room_by_name @room
+      raise "Can't find room named #{@room}!" if @campfire_room.nil?
+      
       @campfire_room.join
-
       update_user_list
       
       puts "You're up! For a list of available commands, type #{highlight('/help')}"
@@ -99,14 +104,16 @@ module Campline
         end
       end
 
-      while msg = Readline.readline('', true)
-        next if msg.strip.blank?
-        if commands[msg]
-          commands[msg].call
-        else
-          @campfire_room.speak msg
-        end 
-      end
+      Thread.new do
+        while msg = Readline.readline('> ', true)
+          next if msg.strip.blank?
+          if commands[msg]
+            commands[msg].call
+          else
+            @campfire_room.speak msg
+          end 
+        end
+      end.join
     end
   end
 
