@@ -7,9 +7,16 @@ if ARGV.size != 3
   exit 1
 end
 
-domain, room, username = *ARGV
+begin
+  domain, room, username = *ARGV
 
-puts "Type in your password:"
-password = $stdin.gets.strip
+  begin
+    %x{stty -icanon -echo}
+    puts "Type in your password:"
+    password = "fulano" #$stdin.gets.strip
+  ensure
+    %x{stty icanon echo}
+  end
 
-Campline::Client.new(domain, room, username, password).listen!
+  Campline::Client.new(domain, room, username, password).listen!
+end
