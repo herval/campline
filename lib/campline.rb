@@ -112,6 +112,7 @@ module Campline
       update_user_list
       
       puts "You're up! For a list of available commands, type #{highlight('/help')}\r\n"
+      show_prompt
 
       Thread.new(@campfire_room) do |listener|
         while true
