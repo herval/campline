@@ -1,7 +1,6 @@
 source "http://rubygems.org"
 
-gem "tinder", :git => "https://github.com/collectiveidea/tinder"
-gem "rb-readline"
+gem "tinder"
 gem "cli-colorize"
 
 # Add dependencies to develop your gem here.

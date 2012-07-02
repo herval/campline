@@ -1,6 +1,7 @@
 require 'rubygems'
+require 'thread'
 require 'tinder'
-require 'readline'
+require 'io/wait'
 require 'yaml'
 require 'cli-colorize'
 
@@ -17,30 +18,32 @@ module Campline
       @password = password
       @user_id = nil
       @room_users = []
+      @output_buffer = ""
+      @input_buffer = Queue.new
     end
 
     def print_message(msg)
       return if (msg[:user] && msg[:user][:id] == @user_id)
       case msg[:type]
         when "SoundMessage" then
-          puts "#{green(msg[:user][:name])} played some annoying sound" 
+          @input_buffer << "#{green(msg[:user][:name])} played some annoying sound" 
         when "PasteMessage" then
-          puts "#{green(msg[:user][:name])}: #{msg[:body]}"
+          @input_buffer << "#{green(msg[:user][:name])}: #{msg[:body]}"
         when "TextMessage" then
-          puts "#{green(msg[:user][:name])}: #{msg[:body]}"
+          @input_buffer << "#{green(msg[:user][:name])}: #{msg[:body]}"
       end
     end
 
     def commands
       {
-        "/help" => lambda { puts "Available commands: /users (list users on the room), /exit (quit!)"},
+        "/help" => lambda { @input_buffer << "Available commands: /users (list users on the room), /exit (quit!)"},
         "/exit" => lambda { @campfire_room.leave; exit; },
         "/users" => lambda { list_users }
       }
     end
 
     def list_users
-      puts white("In the room right now: #{@room_users.join(', ')}")
+      @input_buffer << white("In the room right now: #{@room_users.join(', ')}")
     end
 
     def update_user_list
@@ -48,11 +51,23 @@ module Campline
       @room_users = new_list if @room_users.empty?
 
       new_guys = new_list - @room_users
-      new_guys.each { |n| puts "#{n} joined the room" }
+      new_guys.each { |n| @input_buffer << "#{n} joined the room" }
 
       dead_guys = @room_users - new_list
-      dead_guys.each { |n| puts "#{n} left the room" }
+      dead_guys.each { |n| @input_buffer << "#{n} left the room" }
       @room_users = new_list
+    end
+
+    def backspace!
+      @output_buffer.chop!
+      go_back = "\r\e[0K" # return to beginning of line and use the ANSI clear command "\e" or "\003"
+      print "#{go_back}> #{@output_buffer}"
+    end
+
+    def show_prompt
+      puts "\r\n"
+      print "> #{@output_buffer}"
+      $stdout.flush
     end
 
     def blue(str)
@@ -71,23 +86,32 @@ module Campline
       colorize(str, :background => :red)
     end
 
+    def send_line!
+      if commands[@output_buffer]
+        commands[@output_buffer].call
+      else
+        @campfire_room.speak @output_buffer
+      end
+      @output_buffer = ""
+    end
+
     def listen!
-      puts "Logging in..."
+      puts "Logging in...\r\n"
       begin
         campfire = Campfire.new @domain, :username => @username, :password => @password, :ssl => true
       rescue Tinder::AuthenticationFailed
-        raise "There was an authentication error - check your username and password"
+        raise "There was an authentication error - check your username and password\r\n"
       end
       @user_id = campfire.me.id
 
-      puts "Joining #{@room}..."
+      puts "Joining #{@room}...\r\n"
       @campfire_room = campfire.find_room_by_name @room
-      raise "Can't find room named #{@room}!" if @campfire_room.nil?
+      raise "Can't find room named #{@room}!\r\n" if @campfire_room.nil?
       
       @campfire_room.join
       update_user_list
       
-      puts "You're up! For a list of available commands, type #{highlight('/help')}"
+      puts "You're up! For a list of available commands, type #{highlight('/help')}\r\n"
 
       Thread.new(@campfire_room) do |listener|
         while true
@@ -105,13 +129,30 @@ module Campline
       end
 
       Thread.new do
-        while msg = Readline.readline('> ', true)
-          next if msg.strip.blank?
-          if commands[msg]
-            commands[msg].call
-          else
-            @campfire_room.speak msg
-          end 
+        while true #msg = Readline.readline('> ', true)
+          if $stdin.ready?
+            character = $stdin.getc
+            case character
+              when ?\C-c
+                break
+              when ?\r, ?\n
+                send_line!
+                show_prompt
+              when ?\u007F, ?\b
+                backspace!
+              else
+                @output_buffer << character
+                print character.chr
+                $stdout.flush
+            end
+          end
+
+          unless @input_buffer.empty?   # read from server
+            puts "\r\n"
+            puts "#{@input_buffer.shift}\r\n" until @input_buffer.empty?
+            show_prompt
+          end
+
         end
       end.join
     end

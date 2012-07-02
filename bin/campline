@@ -11,12 +11,14 @@ begin
   domain, room, username = *ARGV
 
   begin
-    %x{stty -icanon -echo}
+    %x{stty -echo}
     puts "Type in your password:"
-    password = "fulano" #$stdin.gets.strip
+    password = $stdin.gets.strip
   ensure
-    %x{stty icanon echo}
+    %x{stty raw -echo}
   end
 
   Campline::Client.new(domain, room, username, password).listen!
+ensure
+  %x{stty -raw echo}
 end

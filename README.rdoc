@@ -18,7 +18,6 @@ The client will prompt for your password and that's it - you're in!
 
 == Copyright
 
-Partially based on campfire-cli, by Petyo Ivanov
+Partially based on campfire-cli, by Petyo Ivanov. STDIN/OUT tricks by http://www.rubyquiz.com/quiz45.html (thanks @cfcosta!)
 
 Copyleft (c) 2012 Herval. See LICENSE.txt for further details.
-
