@@ -20,7 +20,7 @@ module Campline
     end
 
     def print_message(msg)
-      return if msg[:user] && msg[:user][:id] == @user_id
+      return if (msg[:user] && msg[:user][:id] == @user_id)
       case msg[:type]
         when "SoundMessage" then
           puts "#{green(msg[:user][:name])} played some annoying sound" 
