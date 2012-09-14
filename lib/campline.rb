@@ -1,12 +1,24 @@
+# encoding: utf-8
+
 require 'rubygems'
+require 'time'
 require 'thread'
 require 'tinder'
 require 'io/wait'
 require 'yaml'
 require 'cli-colorize'
 
+unless Gem::Specification::find_all_by_name('ruby-growl').empty?
+  require 'ruby-growl'
+  $growl = Growl.new "localhost", "ruby-growl", "UDP"
+else
+  print "Install the ruby-growl to enable Growl notification support\r\n"
+end
+
 module Campline
   
+  GO_BACK = "\r\e[0K" # return to beginning of line and use the ANSI clear command "\e" or "\003"
+
   class Client
     include Tinder
     include CLIColorize
@@ -16,58 +28,99 @@ module Campline
       @room = room
       @username = username
       @password = password
-      @user_id = nil
+      @me = nil
       @room_users = []
       @output_buffer = ""
       @input_buffer = Queue.new
     end
 
-    def print_message(msg)
-      return if (msg[:user] && msg[:user][:id] == @user_id)
-      case msg[:type]
-        when "SoundMessage" then
-          @input_buffer << "#{green(msg[:user][:name])} played some annoying sound" 
-        when "PasteMessage" then
-          @input_buffer << "#{green(msg[:user][:name])}: #{msg[:body]}"
-        when "TextMessage" then
-          @input_buffer << "#{green(msg[:user][:name])}: #{msg[:body]}"
+    def print_message(msg, flush = true, ignore_current_user = true)
+      return if msg[:user].nil?
+
+      return if (msg[:user] && msg[:user][:id] == @me[:id] && ignore_current_user)
+      @input_buffer << case msg[:type]
+        when "KickMessage","LeaveMessage"
+          white("#{msg[:user][:name]} left the room")
+        when "EnterMessage"
+          white("#{msg[:user][:name]} joined the room")
+        when "SoundMessage"
+          "#{green(msg[:user][:name])} #{white('played some sound. Sound is for dummies.')}" 
+        when "PasteMessage", "TextMessage", "TweetMessage"
+          "#{green(msg[:user][:name])}: #{msg[:body]}"
+        else
+          msg
       end
+      flush_input_buffer! if flush
+    end
+
+    def print_inline(msg)
+      print "#{GO_BACK}#{msg}\r\n"
+      show_prompt
     end
 
     def commands
       {
-        "/help" => lambda { print "\r\nAvailable commands: /users (list users on the room), /exit (quit!)"},
-        "/exit" => lambda { @campfire_room.leave; exit; },
-        "/users" => lambda { list_users }
+        "/help" => lambda { print_inline(white("Available commands: /users (list users on the room), /exit (quit!), /log (show latest messages)")) },
+        "/exit" => lambda { exit! },
+        "/users" => lambda { list_users },
+        "/log" => lambda { print_transcript }
       }
     end
 
     def list_users
-      print white("\r\nIn the room right now: #{@room_users.join(', ')}")
+      update_user_list
+      print_inline(white("In the room right now: #{@room_users.collect(&:name).join(', ')}"))
+    end
+
+    def print_transcript
+      update_user_list
+      transcript = @campfire_room.transcript(Date.today)
+      
+      # load user names, as these don't come on the transcript...
+      talking_users = {}
+      @room_users.each do |user|
+        talking_users[user.id] = user
+      end
+
+      transcript[-15..-1].each do |m| 
+        print_message(m.merge(:user => talking_users[m[:user_id]], :type => "TextMessage", :body => m[:message]), false, false)
+      end
+      flush_input_buffer!
+      print_inline(white("Last message received at #{transcript[-1][:timestamp]}"))
     end
 
     def update_user_list
-      new_list = @campfire_room.users.collect(&:name)
+      new_list = @campfire_room.users
       @room_users = new_list if @room_users.empty?
-
-      new_guys = new_list - @room_users
-      new_guys.each { |n| @input_buffer << "#{n} joined the room" }
-
-      dead_guys = @room_users - new_list
-      dead_guys.each { |n| @input_buffer << "#{n} left the room" }
-      @room_users = new_list
     end
 
     def backspace!
       @output_buffer.chop!
-      go_back = "\r\e[0K" # return to beginning of line and use the ANSI clear command "\e" or "\003"
-      print "#{go_back}> #{@output_buffer}"
+      print "#{GO_BACK}> #{@output_buffer}"
     end
 
     def show_prompt
-      puts "\r\n"
-      print "> #{@output_buffer}"
+      print "#{GO_BACK}> #{@output_buffer}"
       $stdout.flush
+    end
+
+    def exit!
+      @campfire_room.leave
+      print "\r\nGoodbye..."
+      exit    
+    end
+
+    def flush_input_buffer!
+      unless @input_buffer.empty? # read from server
+        notify_growl!
+        print GO_BACK
+        print "#{@input_buffer.shift}\r\n" until @input_buffer.empty?
+        show_prompt
+      end      
+    end
+
+    def notify_growl!
+      $growl.notify("ruby-growl", "ruby-growl", "Greetings!") if $growl
     end
 
     def blue(str)
@@ -87,75 +140,81 @@ module Campline
     end
 
     def send_line!
-      if commands[@output_buffer]
-        commands[@output_buffer].call
-      else
-        @campfire_room.speak @output_buffer
-      end
+      buffer = @output_buffer
       @output_buffer = ""
+      if commands[buffer]
+        commands[buffer].call
+      else
+        Thread.new do
+          begin
+            print_message({ :user => @me, :type => "TextMessage", :body => buffer }, true, false)
+            @campfire_room.speak(buffer)
+          rescue => e
+            print_inline(white("A message could not be sent: #{buffer}"))
+          end
+        end
+      end        
+    end
+
+    def start_message_listener!(room)
+      Thread.new do
+        while true
+          begin
+            room.listen do |msg|
+              print_message(msg)
+            end
+          rescue => e
+            # binding.pry
+            # ignore errors!
+            #  puts e
+          end
+        end
+      end
+    end
+
+    def start_typing_agent!
+      Thread.new do
+        while character = $stdin.getc
+          case character
+            when ?\C-c
+              exit!
+            when ?\r, ?\n
+              send_line!
+              show_prompt
+            when ?\e # arrow keys & fn keys
+              # do nothing
+            when ?\u007F, ?\b
+              backspace!
+            else
+              @output_buffer << character
+              print character.chr
+              $stdout.flush
+          end
+        end
+      end
     end
 
     def listen!
-      puts "Logging in...\r\n"
+      print "Logging in...\r\n"
       begin
         campfire = Campfire.new @domain, :username => @username, :password => @password, :ssl => true
       rescue Tinder::AuthenticationFailed
         raise "There was an authentication error - check your username and password\r\n"
       end
-      @user_id = campfire.me.id
+      @me = campfire.me
 
-      puts "Joining #{@room}...\r\n"
+      print "Joining #{@room}...\r\n"
       @campfire_room = campfire.find_room_by_name @room
       raise "Can't find room named #{@room}!\r\n" if @campfire_room.nil?
       
       @campfire_room.join
       update_user_list
       
-      puts "You're up! For a list of available commands, type #{highlight('/help')}\r\n"
-      show_prompt
+      print_transcript
+      print_inline("You're up! For a list of available commands, type #{highlight('/help')}\r\n")
 
-      Thread.new(@campfire_room) do |listener|
-        while true
-          listener.listen do |msg|
-            print_message msg
-          end
-        end
-      end
-
-      Thread.new do
-        while true
-          sleep(10)
-          update_user_list
-        end
-      end
-
-      Thread.new do
-        while true #msg = Readline.readline('> ', true)
-          if $stdin.ready?
-            character = $stdin.getc
-            case character
-              when ?\C-c
-                break
-              when ?\r, ?\n
-                send_line!
-                show_prompt
-              when ?\u007F, ?\b
-                backspace!
-              else
-                @output_buffer << character
-                print character.chr
-                $stdout.flush
-            end
-          end
-
-          unless @input_buffer.empty?   # read from server
-            puts "\r\n"
-            puts "#{@input_buffer.shift}\r\n" until @input_buffer.empty?
-            show_prompt
-          end
-
-        end
-      end.join
+      start_message_listener!(@campfire_room)
+      start_typing_agent!.join
     end
   end
 
