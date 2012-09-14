@@ -1,6 +1,6 @@
 source "http://rubygems.org"
 
-gem "tinder"
+gem "tinder", "1.9.1"
 gem "cli-colorize"
 
 # Add dependencies to develop your gem here.
