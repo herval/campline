@@ -74,7 +74,7 @@ module Campline
 
     def print_transcript
       update_user_list
-      transcript = @campfire_room.transcript(Date.today)
+      transcript = @campfire_room.transcript(Date.today) || []
       
       # load user names, as these don't come on the transcript...
       talking_users = {}
@@ -82,7 +82,7 @@ module Campline
         talking_users[user.id] = user
       end
 
-      transcript[-15..-1].each do |m| 
+      transcript.reverse[0..15].each do |m| 
         print_message(m.merge(:user => talking_users[m[:user_id]], :type => "TextMessage", :body => m[:message]), false, false)
       end
       flush_input_buffer!
@@ -90,8 +90,7 @@ module Campline
     end
 
     def update_user_list
-      new_list = @campfire_room.users
-      @room_users = new_list if @room_users.empty?
+      @room_users = @campfire_room.users
     end
 
     def backspace!
@@ -145,6 +144,7 @@ module Campline
       if commands[buffer]
         commands[buffer].call
       else
+        return if buffer.blank?
         Thread.new do
           begin
             print_message({ :user => @me, :type => "TextMessage", :body => buffer }, true, false)
