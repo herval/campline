@@ -1,6 +1,5 @@
 # encoding: utf-8
 
-require 'rubygems'
 require 'time'
 require 'thread'
 require 'tinder'
@@ -23,11 +22,8 @@ module Campline
     include Tinder
     include CLIColorize
 
-    def initialize(domain, room, username, password)
-      @domain = domain
-      @room = room
-      @username = username
-      @password = password
+    def initialize(options)
+      @config = options
       @me = nil
       @room_users = []
       @output_buffer = ""
@@ -164,7 +160,6 @@ module Campline
               print_message(msg)
             end
           rescue => e
-            # binding.pry
             # ignore errors!
             #  puts e
           end
@@ -197,15 +192,21 @@ module Campline
     def listen!
       print "Logging in...\r\n"
       begin
-        campfire = Campfire.new @domain, :username => @username, :password => @password, :ssl => true
+        params = { :ssl => true }
+        if @config[:api_key]
+          params[:token] = @config[:api_key]
+        else
+          params.merge!(:username => @config[:username], :password => @config[:password])
+        end
+        campfire = Campfire.new(@config[:domain], params)
       rescue Tinder::AuthenticationFailed
-        raise "There was an authentication error - check your username and password\r\n"
+        raise "There was an authentication error - check your login information\r\n"
       end
       @me = campfire.me
 
-      print "Joining #{@room}...\r\n"
-      @campfire_room = campfire.find_room_by_name @room
-      raise "Can't find room named #{@room}!\r\n" if @campfire_room.nil?
+      print "Joining #{@config[:room]}...\r\n"
+      @campfire_room = campfire.find_room_by_name(@config[:room])
+      raise "Can't find room named #{@config[:room]}!\r\n" if @campfire_room.nil?
       
       @campfire_room.join
       update_user_list

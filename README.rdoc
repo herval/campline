@@ -2,9 +2,15 @@
 
 A tiny Campfire client.
 
-Usage: campline <domain> <room> <username>
+Usage: 
 
-The client will prompt for your password and that's it - you're in!
+  campline -d <domain> -r <room> -u <username>
+  
+  OR
+  
+  campline -d <domain> -r <room> -k <api_key>
+
+The client will prompt for your password if you supply your username. And that's it - you're in!
 
 == Contributing to campline
  

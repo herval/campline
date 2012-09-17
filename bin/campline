@@ -1,14 +1,12 @@
 #!/usr/bin/env ruby
 
+require 'rubygems'
+require "cli_config"
 require "campline"
 
-if ARGV.size != 3
-  puts "Usage: campline <domain> <room> <username>"
-  exit 1
-end
-
 begin
-  domain, room, username = *ARGV
+  config = CliConfig.new
+  config.load!
 
   begin
     %x{stty -echo}
@@ -18,7 +16,9 @@ begin
     %x{stty raw -echo}
   end
 
-  Campline::Client.new(domain, room, username, password).listen!
+  Campline::Client.new(config.data.merge(:password => password)).listen!
+rescue => e
+  puts e.message
 ensure
   %x{stty -raw echo}
 end
