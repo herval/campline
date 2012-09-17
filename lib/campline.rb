@@ -78,7 +78,7 @@ module Campline
         talking_users[user.id] = user
       end
 
-      transcript.reverse[0..15].each do |m| 
+      transcript.reverse[0..15].reverse.each do |m| 
         print_message(m.merge(:user => talking_users[m[:user_id]], :type => "TextMessage", :body => m[:message]), false, false)
       end
       flush_input_buffer!
