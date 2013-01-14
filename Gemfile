@@ -1,6 +1,6 @@
 source "http://rubygems.org"
 
-gem "tinder", "1.8.0"
+gem "tinder", "1.9.2"
 gem "cli-colorize"
 gem "mixlib-cli"
 
