@@ -15,7 +15,7 @@ else
 end
 
 module Campline
-  
+
   GO_BACK = "\r\e[0K" # return to beginning of line and use the ANSI clear command "\e" or "\003"
 
   class Client
@@ -40,7 +40,7 @@ module Campline
         when "EnterMessage"
           white("#{msg[:user][:name]} joined the room")
         when "SoundMessage"
-          "#{green(msg[:user][:name])} #{white('played some sound. Sound is for dummies.')}" 
+          "#{green(msg[:user][:name])} #{white('played some sound. Sound is for dummies.')}"
         when "PasteMessage", "TextMessage", "TweetMessage"
           "#{green(msg[:user][:name])}: #{msg[:body]}"
         else
@@ -71,14 +71,14 @@ module Campline
     def print_transcript
       update_user_list
       transcript = @campfire_room.transcript(Date.today) || []
-      
+
       # load user names, as these don't come on the transcript...
       talking_users = {}
       @room_users.each do |user|
         talking_users[user.id] = user
       end
 
-      transcript.reverse[0..15].reverse.each do |m| 
+      transcript.reverse[0..15].reverse.each do |m|
         print_message(m.merge(:user => talking_users[m[:user_id]], :type => "TextMessage", :body => m[:message]), false, false)
       end
       flush_input_buffer!
@@ -102,7 +102,7 @@ module Campline
     def exit!
       @campfire_room.leave
       print "\r\nGoodbye..."
-      exit    
+      exit
     end
 
     def flush_input_buffer!
@@ -111,7 +111,7 @@ module Campline
         print GO_BACK
         print "#{@input_buffer.shift}\r\n" until @input_buffer.empty?
         show_prompt
-      end      
+      end
     end
 
     def notify_growl!
@@ -140,7 +140,7 @@ module Campline
       if commands[buffer]
         commands[buffer].call
       else
-        return if buffer.blank?
+        return if (buffer || "").empty?
         Thread.new do
           begin
             print_message({ :user => @me, :type => "TextMessage", :body => buffer }, true, false)
@@ -149,7 +149,7 @@ module Campline
             print_inline(white("A message could not be sent: #{buffer}"))
           end
         end
-      end        
+      end
     end
 
     def start_message_listener!(room)
@@ -207,10 +207,10 @@ module Campline
       print "Joining #{@config[:room]}...\r\n"
       @campfire_room = campfire.find_room_by_name(@config[:room])
       raise "Can't find room named #{@config[:room]}!\r\n" if @campfire_room.nil?
-      
+
       @campfire_room.join
       update_user_list
-      
+
       print_transcript
       print_inline("You're up! For a list of available commands, type #{highlight('/help')}\r\n")
 
