@@ -7,18 +7,19 @@ require "campline"
 begin
   config = CliConfig.new
   config.load!
+  stty_save = %x{stty -g}.chomp
 
   begin
     %x{stty -echo}
     puts "Type in your password:"
     password = $stdin.gets.strip
   ensure
-    %x{stty raw -echo}
+    %x{stty echo}
   end
 
   Campline::Client.new(config.data.merge(:password => password)).listen!
 rescue => e
   puts e.message
 ensure
-  %x{stty -raw echo}
+  system("stty", stty_save)
 end
