@@ -1,5 +1,6 @@
 # encoding: utf-8
 
+require 'readline'
 require 'time'
 require 'thread'
 require 'tinder'
@@ -26,11 +27,16 @@ module Campline
       @config = options
       @me = nil
       @room_users = []
-      @output_buffer = ""
       @input_buffer = Queue.new
     end
 
-    def print_message(msg, flush = true, ignore_current_user = true)
+    def display_image_iterm2(url)
+      img = open(url)
+      print "#{GO_BACK}\033]1337;File=height=15;inline=1:"+Base64.encode64(img.read)+"\a\n"
+      puts
+    end
+
+    def print_message(msg, flush = true, ignore_current_user = true, print_prompt = true)
       return if msg[:user].nil?
 
       return if (msg[:user] && msg[:user][:id] == @me[:id] && ignore_current_user)
@@ -46,12 +52,11 @@ module Campline
         else
           msg
       end
-      flush_input_buffer! if flush
+      flush_input_buffer!(print_prompt) if flush
     end
 
     def print_inline(msg)
       print "#{GO_BACK}#{msg}\r\n"
-      show_prompt
     end
 
     def commands
@@ -89,29 +94,24 @@ module Campline
       @room_users = @campfire_room.users
     end
 
-    def backspace!
-      @output_buffer.chop!
-      print "#{GO_BACK}> #{@output_buffer}"
-    end
-
     def show_prompt
-      print "#{GO_BACK}> #{@output_buffer}"
+      print "#{GO_BACK}> #{Readline::line_buffer}"
       $stdout.flush
     end
 
     def exit!
       @campfire_room.leave
-      print "\r\nGoodbye..."
+      print "#{GO_BACK}\r\nGoodbye...\r\n"
       exit
     end
 
-    def flush_input_buffer!
+    def flush_input_buffer!(print_prompt = true)
       unless @input_buffer.empty? # read from server
         notify_growl!
         print GO_BACK
         print "#{@input_buffer.shift}\r\n" until @input_buffer.empty?
-        show_prompt
       end
+      show_prompt if print_prompt
     end
 
     def notify_growl!
@@ -134,16 +134,14 @@ module Campline
       colorize(str, :background => :red)
     end
 
-    def send_line!
-      buffer = @output_buffer
-      @output_buffer = ""
+    def send_line!(buffer)
       if commands[buffer]
         commands[buffer].call
       else
         return if (buffer || "").empty?
         Thread.new do
           begin
-            print_message({ :user => @me, :type => "TextMessage", :body => buffer }, true, false)
+            print_message({ :user => @me, :type => "TextMessage", :body => buffer }, true, false, false)
             @campfire_room.speak(buffer)
           rescue => e
             print_inline(white("A message could not be sent: #{buffer}"))
@@ -154,7 +152,7 @@ module Campline
 
     def start_message_listener!(room)
       Thread.new do
-        while true
+        loop do
           begin
             room.listen do |msg|
               print_message(msg)
@@ -168,24 +166,15 @@ module Campline
     end
 
     def start_typing_agent!
-      Thread.new do
-        while character = $stdin.getc
-          case character
-            when ?\C-c
-              exit!
-            when ?\r, ?\n
-              send_line!
-              show_prompt
-            when ?\e # arrow keys & fn keys
-              # do nothing
-            when ?\u007F, ?\b
-              backspace!
-            else
-              @output_buffer << character
-              print character.chr
-              $stdout.flush
-          end
-        end
+      comp = proc { |s| commands.keys.sort.grep( /^#{Regexp.escape(s)}/ ) }
+
+      Readline.completion_proc = comp
+      Readline.completion_append_character = ''
+
+      loop do
+        line = Readline::readline('> ', true)
+        exit! if line.nil?
+        send_line!(line)
       end
     end
 
@@ -213,6 +202,10 @@ module Campline
 
       print_transcript
       print_inline("You're up! For a list of available commands, type #{highlight('/help')}\r\n")
+
+      trap("INT") {
+        exit!
+      }
 
       start_message_listener!(@campfire_room)
       start_typing_agent!.join
